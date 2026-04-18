@@ -29,28 +29,31 @@ INDEX_DIR     = DATA_ROOT / "index"
 MANIFEST_PATH = INDEX_DIR / "manifest_with_embeddings.json"
 
 
-# ── Cached loaders (load ONCE per session) ────────────────────
-@st.cache_resource(show_spinner="⏳ Loading ColPali model (first time only ~1 min)...")
+# ── Cached loaders ────────────────────────────────────────────
+@st.cache_resource(show_spinner="⏳ Loading ColPali model (first time ~1 min)...")
 def get_embedder():
     return ColPaliEmbedder()
 
 
-@st.cache_resource(show_spinner="⏳ Loading Gemini...")
+@st.cache_resource(show_spinner="⏳ Connecting to Gemini...")
 def get_generator(api_key: str):
     return GeminiVLMGenerator(api_key=api_key)
 
 
 @st.cache_resource(show_spinner="⏳ Loading index from disk...")
 def get_index(manifest_path: str):
-    """
-    Cached — keyed on manifest_path string.
-    Call st.cache_resource.clear() after rebuilding to force a reload.
-    """
     manifest = load_manifest(manifest_path)
-    _embedder = get_embedder()          # reuses cached embedder
+    _embedder = get_embedder()
     idx = MultiVectorIndex()
     for page in manifest["pages"]:
-        emb = torch.load(page["embedding_path"], weights_only=True)
+        emb_path = page.get("embedding_path")
+        if not emb_path:
+            raise KeyError(
+                f"Page {page.get('page_num')} of {page.get('doc_id')} "
+                "has no 'embedding_path'. The manifest was saved before "
+                "embedding completed. Delete data/streamlit/ and rebuild."
+            )
+        emb = torch.load(emb_path, weights_only=True)
         idx.add(emb, page)
     return idx, manifest
 
@@ -78,17 +81,41 @@ def embed_pages_with_progress(pages: List[Dict], progress_bar) -> List[Dict]:
             emb_path = INDEX_DIR / f"emb_{p['doc_id']}_{p['page_num']}.pt"
             emb_path.parent.mkdir(parents=True, exist_ok=True)
             torch.save(emb, emb_path)
-            p["embedding_path"] = str(emb_path)
+            p["embedding_path"] = str(emb_path)   # ← stored on the page dict
 
         progress_bar.progress(min((i + batch_size) / total, 1.0))
 
     return pages
 
 
+def build_and_save_manifest(pages: List[Dict], doc_id: str, pdf_name: str) -> dict:
+    """
+    Build manifest and ensure embedding_path is preserved on every page.
+    create_manifest() rebuilds page dicts — we patch them back afterwards.
+    """
+    manifest = create_manifest(
+        all_pages    = [pages],
+        doc_metadata = {doc_id: {"description": doc_id, "filename": pdf_name}},
+        output_dir   = INDEX_DIR,
+    )
+
+    # create_manifest doesn't carry embedding_path — patch it back
+    path_lookup = {(p["doc_id"], p["page_num"]): p.get("embedding_path", "") for p in pages}
+    for page in manifest["pages"]:
+        key = (page["doc_id"], page["page_num"])
+        page["embedding_path"] = path_lookup.get(key, "")
+
+    # Save the final manifest WITH embedding paths
+    MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(MANIFEST_PATH, "w", encoding="utf-8") as f:
+        json.dump(manifest, f, indent=2)
+
+    return manifest
+
+
 def retrieve(query: str, embedder, index, top_k: int = 4):
     q_emb   = embedder.embed_query(query)
     results = index.score(q_emb)
-
     formatted = [
         {
             "score":          float(score),
@@ -96,7 +123,7 @@ def retrieve(query: str, embedder, index, top_k: int = 4):
             "page_num":       meta["page_num"],
             "image_path":     meta["image_path"],
             "citation":       meta["citation"],
-            "embedding_path": meta["embedding_path"],
+            "embedding_path": meta.get("embedding_path", ""),
         }
         for score, meta in results[:top_k]
     ]
@@ -135,25 +162,13 @@ with st.sidebar:
                 )
                 st.success(f"Extracted {len(pages)} pages")
 
-            st.write("Embedding pages (this takes a minute on CPU)...")
+            st.write("Embedding pages (this takes a few minutes on CPU)...")
             progress_bar = st.progress(0.0)
             pages = embed_pages_with_progress(pages, progress_bar)
 
-            with st.spinner("Saving manifest..."):
-                manifest = create_manifest(
-                    all_pages    = [pages],
-                    doc_metadata = {
-                        doc_id: {
-                            "description": doc_id,
-                            "filename":    pdf_path.name,
-                        }
-                    },
-                    output_dir = INDEX_DIR,
-                )
-                with open(MANIFEST_PATH, "w") as f:
-                    json.dump(manifest, f, indent=2)
+            with st.spinner("Saving manifest with embeddings..."):
+                build_and_save_manifest(pages, doc_id, uploaded_pdf.name)
 
-            # ── Clear cached index so it reloads with the new manifest ──
             get_index.clear()
             st.success("✅ Index built and saved!")
             st.rerun()
@@ -165,13 +180,12 @@ with st.sidebar:
 
 
 # ─────────────────────────────────────────────────────────────
-# LOAD INDEX  (stop early if not built yet)
+# LOAD INDEX
 # ─────────────────────────────────────────────────────────────
 if not MANIFEST_PATH.exists():
     st.info("👈 Upload a PDF and build the index to get started.")
     st.stop()
 
-# These are cached — fast after the first call
 index, manifest = get_index(str(MANIFEST_PATH))
 embedder        = get_embedder()
 
@@ -184,7 +198,6 @@ st.header("💬 Ask Questions")
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Replay chat history
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
@@ -196,34 +209,31 @@ if query:
     with st.chat_message("user"):
         st.markdown(query)
 
-    # ── Retrieval ─────────────────────────────────────────────
     with st.spinner("Searching document..."):
         retrieved, q_emb = retrieve(query, embedder, index)
 
-    # ── Show retrieved pages in sidebar ───────────────────────
     with st.sidebar:
         st.subheader("📄 Retrieved Pages")
         for p in retrieved:
             st.image(
                 p["image_path"],
-                caption        = f"{p['doc_id']} — Page {p['page_num']}  (score: {p['score']:.3f})",
-                use_column_width = True,
+                caption          = f"{p['doc_id']} — Page {p['page_num']}  (score: {p['score']:.3f})",
+                width = True,
             )
 
-    # ── Similarity maps (bonus) ───────────────────────────────
     if HAS_INTERPRET:
         st.subheader("🔥 Similarity Maps")
         for p in retrieved[:2]:
-            doc_emb = torch.load(p["embedding_path"], weights_only=True)
-            img     = Image.open(p["image_path"]).convert("RGB")
-            fig     = plot_all_similarity_maps(
-                query_embeddings    = q_emb,
-                document_embeddings = doc_emb,
-                image               = img,
-            )
-            st.pyplot(fig)
+            if p.get("embedding_path") and Path(p["embedding_path"]).exists():
+                doc_emb = torch.load(p["embedding_path"], weights_only=True)
+                img     = Image.open(p["image_path"]).convert("RGB")
+                fig     = plot_all_similarity_maps(
+                    query_embeddings    = q_emb,
+                    document_embeddings = doc_emb,
+                    image               = img,
+                )
+                st.pyplot(fig)
 
-    # ── Generate answer ───────────────────────────────────────
     if not api_key:
         st.error("Please enter your Gemini API key in the sidebar.")
         st.stop()
@@ -238,7 +248,6 @@ if query:
                 image_paths     = image_paths,
                 retrieved_pages = retrieved,
             )
-
         final_answer = answer + format_citations(retrieved)
         st.markdown(final_answer)
 
