@@ -1,0 +1,23 @@
+# ── Core ML / Vision ─────────────────────────────────────────────────────────
+torch>=2.2.0
+torchvision>=0.17.0
+Pillow>=10.0.0
+tqdm>=4.66.0
+
+# ── ColPali / ColQwen2 ────────────────────────────────────────────────────────
+colpali-engine>=0.3.0          # ColQwen2 model + processor + MaxSim utilities
+transformers>=4.40.0
+huggingface-hub>=0.22.0
+
+# ── PDF processing ────────────────────────────────────────────────────────────
+PyMuPDF>=1.24.0                # fitz — PDF rasterisation & text extraction
+pdf2image>=1.17.0              # optional higher-quality rasteriser (needs poppler)
+
+# ── Gemini VLM ────────────────────────────────────────────────────────────────
+google-generativeai>=0.7.0
+
+# ── Streamlit UI ──────────────────────────────────────────────────────────────
+streamlit>=1.35.0
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+numpy>=1.26.0python-dotenv

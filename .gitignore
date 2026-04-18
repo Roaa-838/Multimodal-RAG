@@ -1,0 +1,44 @@
+# ── API keys & secrets ────────────────────────────────────────
+.env
+
+# ── Python ────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+venv/
+.venv/
+*.egg-info/
+
+# ── Large data files ──────────────────────────────────────────
+# Raw PDFs
+data/documents/
+data/pdfs/
+
+# Extracted page images (regeneratable from PDFs)
+data/extracted/*/images/
+data/streamlit/
+
+# ColPali embedding tensors (large, regeneratable)
+data/index/*.pt
+data/index/
+
+# HuggingFace model cache
+hf_cache/
+
+# ── Streamlit ─────────────────────────────────────────────────
+.streamlit/
+
+# ── OS / Editor ───────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+
+# ── Keep these important files ────────────────────────────────
+!data/extracted/manifest.json
+!data/extracted/manifest_small.json
+!data/index/manifest_with_embeddings.json
+!eval/benchmark_queries.json
+!eval/results.json

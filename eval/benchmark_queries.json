@@ -1,0 +1,34 @@
+[
+  {
+    "question": "What is the GDP growth forecast mentioned in the document?",
+    "category": "macro"
+  },
+  {
+    "question": "What are the main inflation trends described?",
+    "category": "inflation"
+  },
+  {
+    "question": "Summarize the key risks identified in the outlook.",
+    "category": "risk"
+  },
+  {
+    "question": "What fiscal policy recommendations are made?",
+    "category": "fiscal"
+  },
+  {
+    "question": "Describe any charts or figures showing economic data.",
+    "category": "visual"
+  },
+  {
+    "question": "What are the main structural reform priorities?",
+    "category": "structural"
+  },
+  {
+    "question": "What does the table on the most recent page show?",
+    "category": "table"
+  },
+  {
+    "question": "What is the current account balance situation?",
+    "category": "external"
+  }
+]
