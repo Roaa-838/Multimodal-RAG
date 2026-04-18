@@ -139,9 +139,3 @@ python run_qa.py --manifest data/index/manifest_with_embeddings.json --eval eval
 - ColQwen2 UNEXPECTED/MISSING key warnings are safe to ignore
 - Use `%GEMINI_API_KEY%` (not `$`) in Windows CMD
 
----
-
-## Authors
-
-DSAI 413 — Multi-Modal Deep Learning
-Zewail City of Science and Technology · Spring 2025
