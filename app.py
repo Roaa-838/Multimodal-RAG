@@ -21,7 +21,7 @@ except Exception:
 
 # ── App config ────────────────────────────────────────────────
 st.set_page_config(page_title="Multi-Modal RAG QA", layout="wide")
-st.title("📄 Multi-Modal RAG (ColPali + Gemini)")
+st.title(" Multi-Modal RAG (ColPali + Gemini)")
 
 DATA_ROOT     = Path("data/streamlit")
 EXTRACTED_DIR = DATA_ROOT / "extracted"
@@ -30,17 +30,17 @@ MANIFEST_PATH = INDEX_DIR / "manifest_with_embeddings.json"
 
 
 # ── Cached loaders ────────────────────────────────────────────
-@st.cache_resource(show_spinner="⏳ Loading ColPali model (first time ~1 min)...")
+@st.cache_resource(show_spinner="Loading ColPali model (first time ~1 min)...")
 def get_embedder():
     return ColPaliEmbedder()
 
 
-@st.cache_resource(show_spinner="⏳ Connecting to Gemini...")
+@st.cache_resource(show_spinner=" Connecting to Gemini...")
 def get_generator(api_key: str):
     return GeminiVLMGenerator(api_key=api_key)
 
 
-@st.cache_resource(show_spinner="⏳ Loading index from disk...")
+@st.cache_resource(show_spinner=" Loading index from disk...")
 def get_index(manifest_path: str):
     manifest = load_manifest(manifest_path)
     _embedder = get_embedder()
@@ -170,7 +170,7 @@ with st.sidebar:
                 build_and_save_manifest(pages, doc_id, uploaded_pdf.name)
 
             get_index.clear()
-            st.success("✅ Index built and saved!")
+            st.success(" Index built and saved!")
             st.rerun()
 
     if MANIFEST_PATH.exists():
@@ -183,7 +183,7 @@ with st.sidebar:
 # LOAD INDEX
 # ─────────────────────────────────────────────────────────────
 if not MANIFEST_PATH.exists():
-    st.info("👈 Upload a PDF and build the index to get started.")
+    st.info(" Upload a PDF and build the index to get started.")
     st.stop()
 
 index, manifest = get_index(str(MANIFEST_PATH))
@@ -193,7 +193,7 @@ embedder        = get_embedder()
 # ─────────────────────────────────────────────────────────────
 # CHAT INTERFACE
 # ─────────────────────────────────────────────────────────────
-st.header("💬 Ask Questions")
+st.header(" Ask Questions")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -218,11 +218,11 @@ if query:
             st.image(
                 p["image_path"],
                 caption          = f"{p['doc_id']} — Page {p['page_num']}  (score: {p['score']:.3f})",
-                width = True,
+                use_column_width  = True,
             )
 
     if HAS_INTERPRET:
-        st.subheader("🔥 Similarity Maps")
+        st.subheader(" Similarity Maps")
         for p in retrieved[:2]:
             if p.get("embedding_path") and Path(p["embedding_path"]).exists():
                 doc_emb = torch.load(p["embedding_path"], weights_only=True)
